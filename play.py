@@ -4,6 +4,7 @@ from keras.models import Sequential
 from datetime import datetime
 import utils
 import simple_es as es
+import view_weights as wViewer
 import numpy as np
 import gym
 import h5py
@@ -25,14 +26,24 @@ def construct_model():
 def main():
     numGenerations = 0
     model = construct_model()
-    print("Model Constructed.")
+    print("\n\nModel Constructed.")
     numWeights = 401 #number of weights in the Neural network
+
+    customStartPoint = True
+    CMA = False
+    
     startPoint = np.random.randn(numWeights) #random values form normal distribution
+
+    if customStartPoint:
+        startPoint = wViewer.getStartPoint()
+        print("Custom Start Point Loaded.")
+    
+    stdDeviation = np.zeros(401)
     delta = np.zeros(numWeights)
-    weightConfigs, populationSize, noise = es.generateWeightPopulation(startPoint, numWeights)
-   
+    weightConfigs, populationSize, noise = es.generateWeightPopulation(startPoint, numWeights, numGenerations, stdDeviation, CMA)
+    
     print("Generating weights population jittered with noise...")
-   
+    
     bias0, kernel0, bias1, kernel1 = es.reshapeWeights(weightConfigs)
     createWeightsFiles(bias0, kernel0, bias1, kernel1, populationSize)
   
@@ -57,13 +68,16 @@ def main():
     gamma = 0.99
   
     episode_nb = 0 #tracks the episode that we are on. 1 episode = first player to 21 points
-    rewards = np.zeros(populationSize) #reward sum per episode
     reward_sum = 0
 
     action = np.random.randint(UP_ACTION, DOWN_ACTION+1) # create first action randomly to supply to the environment step call below
     #print(model.summary())
     while numGenerations != 10:
+        rewards = np.zeros(populationSize) #reward sum per episode
         print("\n----------Generation "+str(numGenerations)+"----------")
+        toLoad = 'weightFiles/weights'+str(episode_nb)+'.h5'
+        model.load_weights(toLoad, by_name=True) #load the next set of weights
+        print("Episode "+str(episode_nb)+". Model has loaded weights"+str(episode_nb)+".h5")
 
         while True:
             
@@ -72,10 +86,11 @@ def main():
             #time.sleep(0.02)
             observation, reward, done, info = env.step(action)
             #print(info)
-            reward_sum += reward #add reward of previous action to the sum
             if reward > 0:
+                reward += 1
                 print(reward)
-            
+            reward_sum += reward #add reward of previous action to the sum
+           
             skip_frame = False
             cur_input = utils.preprocess(observation)
 
@@ -113,17 +128,20 @@ def main():
                 print("Episode "+str(episode_nb)+". Model has loaded weights"+str(episode_nb)+".h5")
                 action = np.random.randint(UP_ACTION, DOWN_ACTION+1) # create first action for next episode
 
-        
-        delta = es.evolve(weightConfigs, rewards, noise)
-        startPoint += delta
-        es.generateWeightPopulation(startPoint, numWeights)
-        print("Generating weights population jittered with noise...")
-   
+        CMA = True
+        numGenerations +=1
+            #delta = es.evolve(weightConfigs, rewards, noise) 
+        startPoint, stdDeviation = es.CMAesEvolve(weightConfigs, rewards, populationSize)
+        #print(startPoint)
+        #print("NEW START POINT")
+        weightConfigs, populationSize, noise = es.generateWeightPopulation(startPoint, numWeights, numGenerations, stdDeviation, CMA)
+        print("\nGenerating weights population jittered with noise...")
+         
         bias0, kernel0, bias1, kernel1 = es.reshapeWeights(weightConfigs)
         createWeightsFiles(bias0, kernel0, bias1, kernel1, populationSize)
-        numGenerations +=1
+        
 
-            #es.CMAesEvolve(weightConfigs, rewards, populationSize)
+        
 
 def createWeightsFiles(bias0, kernel0, bias1, kernel1, populationSize):
 
@@ -134,6 +152,7 @@ def createWeightsFiles(bias0, kernel0, bias1, kernel1, populationSize):
         f.create_dataset('dense_3/dense_3/kernel:0', data = kernel0[i].reshape((6,50)))
         f.create_dataset('dense_4/dense_4/bias:0', data = bias1[i])
         f.create_dataset('dense_4/dense_4/kernel:0', data = kernel1[i])
+        f.close()
        # f = h5py.File(fileName,"a") #now we want to append
 
 
