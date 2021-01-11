@@ -8,4 +8,4 @@ The policy of the agent takes the form of a neural network -- the weights of whi
 perform well and are propagated into the population of the next generation, a survival of the fittest approach.
 
 The environment used is OpenAI Gym and the ES framework can be found here https://github.com/hardmaru/estool.
-A custom ES framework was also built.
+A custom ES framework was also built -- please contact me for more information.
