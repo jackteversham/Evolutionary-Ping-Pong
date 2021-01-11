@@ -214,13 +214,27 @@ def createWeightsFiles(bias0, kernel0, bias1, kernel1, populationSize, i):
 
 #my subclass of threading class
 class myThread(threading.Thread):
-    def __init__(self, threadID, range, model): #takes an ID, the range of operation, the model as parameters
+    def __init__(self, threadID, weightRange, model, env, UP_ACTION, DOWN_ACTION): #takes an ID, the range of operation, the model as parameters
         threading.Thread.__init__(self)
         self.threadID = threadID
-        self.range = range
+        self.weightRange = weightRange #an array containing start and end points
         self.model = model
+        self.env = env
+        self.UP_ACTION = UP_ACTION
+        self.DOWN_ACTION = DOWN_ACTION
+
     def run(self):
-        
+        diff = self.weightRange[1]-self.weightRange[0] #diff is a proportion of the population size
+        result = np.zeros(diff)
+
+        for i in range(diff):
+            filename = 'weightFiles/weights' +str(self.weightRange[0]+i)+'.h5'
+            print("Thread "+str(self.threadID)+" loading "+filename)
+            self.model.load_weights(filename, by_name=True)
+            result[i] = rollout(self.env, self.model, self.UP_ACTION, self.DOWN_ACTION)
+    
+        return result
+
 
 
 if __name__ == "__main__":
